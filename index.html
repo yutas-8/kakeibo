@@ -1,0 +1,760 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://www.gstatic.com https://apis.google.com; connect-src 'self' https://*.googleapis.com https://firestore.googleapis.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firebaseinstallations.googleapis.com https://www.googleapis.com; frame-src https://*.firebaseapp.com https://accounts.google.com https://apis.google.com; img-src 'self' data: https://www.gstatic.com https://*.googleusercontent.com; style-src 'self' 'unsafe-inline'; font-src 'self' data:; object-src 'none'; frame-ancestors 'none'; base-uri 'self'; form-action 'self';">
+<meta name="referrer" content="no-referrer">
+<title>家計簿</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js" referrerpolicy="no-referrer"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{--blue:#4f6ef7;--green:#22c55e;--red:#ef4444;--orange:#f97316;--bg:#f4f6f9;--card:#fff;--border:#e0e4ef;--text:#1a1a2e;--muted:#888;--radius:10px}
+body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;background:var(--bg);color:var(--text);font-size:14px;min-height:100vh}
+
+/* LOGIN */
+#login-screen{display:flex;align-items:center;justify-content:center;min-height:100vh;background:linear-gradient(135deg,#667eea,#764ba2)}
+.login-card{background:#fff;border-radius:16px;padding:48px 40px;text-align:center;width:320px;box-shadow:0 20px 60px rgba(0,0,0,.2)}
+.login-card h1{font-size:24px;font-weight:700;margin-bottom:8px;color:var(--text)}
+.login-card p{color:var(--muted);font-size:13px;margin-bottom:32px}
+.btn-google{display:flex;align-items:center;justify-content:center;gap:10px;width:100%;padding:12px;background:#fff;border:1px solid var(--border);border-radius:8px;cursor:pointer;font-size:14px;font-weight:500;transition:background .15s}
+.btn-google:hover{background:#f8f9fc}
+.btn-google img{width:18px;height:18px}
+
+/* APP LAYOUT */
+#app{display:flex;flex-direction:column;min-height:100vh}
+.header{background:#fff;border-bottom:1px solid var(--border);position:sticky;top:0;z-index:100}
+.header-inner{display:flex;align-items:center;gap:16px;padding:0 20px;height:52px}
+.logo{font-size:16px;font-weight:700;color:var(--text)}
+.pc-nav{display:flex;flex:1}
+.nav-btn{padding:0 16px;height:52px;border:none;background:none;cursor:pointer;font-size:13px;color:var(--muted);border-bottom:2px solid transparent;font-weight:500;transition:all .15s}
+.nav-btn.active{color:var(--blue);border-bottom-color:var(--blue)}
+.nav-btn:hover:not(.active){color:var(--text)}
+.header-right{display:flex;align-items:center;gap:10px;margin-left:auto}
+#user-name{font-size:12px;color:var(--muted)}
+.btn-logout{padding:5px 12px;border:1px solid var(--border);border-radius:6px;background:#fff;cursor:pointer;font-size:12px;color:var(--muted)}
+.btn-logout:hover{background:var(--bg)}
+
+/* MAIN */
+.main{flex:1;padding:16px 20px 80px;max-width:960px;margin:0 auto;width:100%}
+.tab{display:none}.tab.active{display:block}
+
+/* TOOLBAR */
+.toolbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px}
+.filter-views{display:flex;gap:6px;flex-wrap:wrap;flex:1}
+.filter-btn{padding:6px 12px;border:1px solid var(--border);border-radius:20px;background:#fff;cursor:pointer;font-size:12px;font-weight:500;color:var(--muted);transition:all .15s}
+.filter-btn.active{background:var(--blue);color:#fff;border-color:var(--blue)}
+.badge{display:inline-block;background:rgba(0,0,0,.1);border-radius:10px;padding:0 6px;font-size:11px;margin-left:4px}
+.filter-btn.active .badge{background:rgba(255,255,255,.3)}
+.toolbar-right{display:flex;gap:8px;align-items:center}
+.search-input{padding:7px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px;width:180px;background:#fff}
+.search-input:focus{outline:none;border-color:var(--blue)}
+
+/* BULK BAR */
+.bulk-bar{display:flex;align-items:center;gap:10px;padding:8px 14px;background:#fff9ec;border:1px solid #fde68a;border-radius:8px;margin-bottom:10px;flex-wrap:wrap}
+#bulk-count{font-size:13px;font-weight:500;color:#92400e}
+
+/* TRANSACTION LIST */
+.transaction-list{background:#fff;border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;margin-bottom:12px}
+.tx-row{display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid #f0f2f8;transition:background .1s;font-size:13px}
+.tx-row:last-child{border-bottom:none}
+.tx-row:hover{background:#fafbff}
+.tx-row.selected{background:#eff3ff}
+.tx-check{width:16px;height:16px;cursor:pointer;flex-shrink:0;accent-color:var(--blue)}
+.tx-date{color:var(--muted);font-size:12px;min-width:48px;flex-shrink:0}
+.tx-type-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+.dot-exp{background:var(--red)}.dot-inc{background:var(--green)}
+.tx-name{flex:1;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tx-cat{font-size:11px;color:#555;background:#f0f2f8;padding:2px 8px;border-radius:10px;white-space:nowrap;flex-shrink:0}
+.tx-amount{font-weight:600;min-width:90px;text-align:right;flex-shrink:0}
+.amt-exp{color:var(--red)}.amt-inc{color:var(--green)}
+.status-btn{font-size:11px;padding:3px 8px;border-radius:5px;border:1px solid transparent;cursor:pointer;font-weight:500;flex-shrink:0;white-space:nowrap}
+.status-pending{background:#fef3c7;color:#92400e;border-color:#fde68a}
+.status-done{background:#dcfce7;color:#166534;border-color:#bbf7d0}
+.status-skip{background:#f3f4f6;color:#6b7280;border-color:#e5e7eb}
+.edit-btn{font-size:11px;padding:3px 8px;border:1px solid var(--border);border-radius:5px;background:#fff;cursor:pointer;color:var(--muted);flex-shrink:0}
+.edit-btn:hover{background:var(--bg)}
+.empty-state{text-align:center;padding:40px;color:var(--muted);font-size:13px}
+
+/* PAGINATION */
+.pagination-bar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;font-size:12px;color:var(--muted)}
+#pagination-info{flex:1}
+.page-size-selector{display:flex;align-items:center;gap:4px}
+.page-size-btn{padding:4px 10px;border:1px solid var(--border);border-radius:5px;background:#fff;cursor:pointer;font-size:12px;color:var(--muted)}
+.page-size-btn.active{background:var(--blue);color:#fff;border-color:var(--blue)}
+.page-nav{display:flex;gap:6px}
+.btn-page{padding:5px 12px;border:1px solid var(--border);border-radius:6px;background:#fff;cursor:pointer;font-size:12px;color:var(--muted)}
+.btn-page:hover:not(:disabled){background:var(--bg)}
+.btn-page:disabled{opacity:.4;cursor:not-allowed}
+
+/* BUTTONS */
+.btn-primary{padding:8px 16px;background:var(--blue);color:#fff;border:none;border-radius:7px;cursor:pointer;font-size:13px;font-weight:500;transition:background .15s}
+.btn-primary:hover{background:#3a5ae8}
+.btn-outline{padding:7px 14px;background:#fff;color:#555;border:1px solid var(--border);border-radius:7px;cursor:pointer;font-size:13px;font-weight:500}
+.btn-outline:hover{background:var(--bg)}
+.btn-danger{padding:8px 16px;background:var(--red);color:#fff;border:none;border-radius:7px;cursor:pointer;font-size:13px;font-weight:500}
+.btn-danger:hover{background:#dc2626}
+.btn-primary-sm{padding:5px 12px;background:var(--blue);color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:12px;font-weight:500}
+.btn-outline-sm{padding:5px 12px;background:#fff;color:#555;border:1px solid var(--border);border-radius:6px;cursor:pointer;font-size:12px}
+.select-sm{padding:6px 10px;border:1px solid var(--border);border-radius:7px;font-size:13px;background:#fff}
+
+/* MODAL */
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:200;align-items:center;justify-content:center;padding:16px}
+.modal{background:#fff;border-radius:12px;width:100%;max-width:520px;max-height:90vh;overflow-y:auto}
+.modal-header{display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid var(--border)}
+.modal-header h2{font-size:16px;font-weight:600}
+.modal-close{background:none;border:none;font-size:20px;cursor:pointer;color:var(--muted);line-height:1}
+.modal-body{padding:20px}
+.modal-footer{display:flex;align-items:center;justify-content:space-between;padding:14px 20px;border-top:1px solid var(--border)}
+.modal-footer-right{display:flex;gap:8px}
+.type-toggle{display:flex;border:1px solid var(--border);border-radius:8px;overflow:hidden;margin-bottom:18px;width:fit-content}
+.type-btn{padding:7px 24px;border:none;background:none;cursor:pointer;font-size:13px;font-weight:500;color:var(--muted);transition:all .15s}
+.type-btn.active.expense{background:#fee2e2;color:#c0392b}
+.type-btn.active.income{background:#dcfce7;color:#166534}
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px}
+.form-group{display:flex;flex-direction:column;gap:5px}
+.form-group label{font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+.form-group input,.form-group select,.form-group textarea{padding:8px 10px;border:1px solid var(--border);border-radius:7px;font-size:13px;background:#fff;font-family:inherit}
+.form-group input:focus,.form-group select:focus,.form-group textarea:focus{outline:none;border-color:var(--blue);box-shadow:0 0 0 3px rgba(79,110,247,.1)}
+.full-width{grid-column:1/-1}
+.required{color:var(--red)}
+
+/* TOAST */
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#1e1e2e;color:#fff;border-radius:10px;padding:12px 16px;display:flex;align-items:center;gap:12px;z-index:300;min-width:280px;box-shadow:0 4px 20px rgba(0,0,0,.3);flex-direction:column}
+.toast-row{display:flex;align-items:center;gap:12px;width:100%}
+.toast-msg{flex:1;font-size:13px}
+.toast-undo{background:var(--blue);color:#fff;border:none;border-radius:5px;padding:4px 12px;cursor:pointer;font-size:12px;font-weight:600}
+.toast-close{background:none;border:none;color:#888;cursor:pointer;font-size:16px;line-height:1}
+.toast-progress{height:3px;background:#444;border-radius:2px;width:100%;overflow:hidden}
+.toast-progress-fill{height:100%;background:var(--blue);border-radius:2px;transition:width 30s linear}
+
+/* ANALYSIS */
+.analysis-filter{display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap}
+.summary-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:16px}
+.summary-card{background:#fff;border:1px solid var(--border);border-radius:var(--radius);padding:16px;text-align:center}
+.summary-label{font-size:11px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px}
+.summary-value{font-size:22px;font-weight:700}
+.summary-value.expense{color:var(--red)}.summary-value.income{color:var(--green)}
+.summary-value.positive{color:var(--green)}.summary-value.negative{color:var(--red)}
+.chart-card{background:#fff;border:1px solid var(--border);border-radius:var(--radius);padding:16px;margin-bottom:14px}
+.chart-title{font-size:13px;font-weight:600;color:var(--muted);margin-bottom:12px;text-transform:uppercase;letter-spacing:.04em}
+.chart-wrap{position:relative;height:250px}
+
+/* BUDGET */
+.budget-header{display:flex;align-items:center;gap:10px;margin-bottom:16px;flex-wrap:wrap}
+.budget-total-card{background:#fff;border:1px solid var(--border);border-radius:var(--radius);padding:16px;margin-bottom:14px}
+.budget-label{font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:10px}
+.budget-input-row{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+.budget-input{padding:8px 12px;border:1px solid var(--border);border-radius:7px;font-size:15px;width:160px;font-weight:600}
+.budget-progress-bar{height:8px;background:#f0f2f8;border-radius:4px;overflow:hidden;margin-bottom:6px}
+.budget-progress-fill{height:100%;background:var(--blue);border-radius:4px;transition:width .3s}
+.budget-progress-fill.over{background:var(--red)}
+.budget-progress-bar.sm{height:5px;margin-bottom:4px}
+.budget-progress-text{display:flex;justify-content:space-between;font-size:12px;color:var(--muted)}
+.over-text{color:var(--red);font-weight:600}
+.budget-categories{display:flex;flex-direction:column;gap:10px}
+.budget-cat-row{background:#fff;border:1px solid var(--border);border-radius:8px;padding:12px 14px}
+.budget-cat-name{font-size:13px;font-weight:500;display:block;margin-bottom:6px}
+.budget-cat-input-row{display:flex;align-items:center;gap:6px;margin-bottom:6px}
+.budget-cat-input{padding:5px 8px;border:1px solid var(--border);border-radius:6px;font-size:13px;width:120px}
+.budget-cat-actual{font-size:11px;color:var(--muted)}
+.budget-no-budget{font-size:12px;color:var(--muted)}
+
+/* SETTINGS */
+.settings-section{background:#fff;border:1px solid var(--border);border-radius:var(--radius);padding:18px;margin-bottom:14px}
+.settings-section h3{font-size:13px;font-weight:600;color:var(--text);margin-bottom:14px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted)}
+.settings-hint{font-size:12px;color:var(--muted);margin-bottom:12px}
+.category-type-toggle{display:flex;border:1px solid var(--border);border-radius:7px;overflow:hidden;width:fit-content;margin-bottom:14px}
+.cat-type-btn{padding:6px 20px;border:none;background:none;cursor:pointer;font-size:13px;font-weight:500;color:var(--muted)}
+.cat-type-btn.active{background:var(--blue);color:#fff}
+.category-list{display:flex;flex-direction:column;gap:6px;margin-bottom:12px}
+.cat-item{display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:var(--bg);border-radius:7px;font-size:13px}
+.del-cat-btn{background:none;border:none;cursor:pointer;color:#ccc;font-size:14px;padding:0 4px}
+.del-cat-btn:hover{color:var(--red)}
+.add-category-row{display:flex;gap:8px;align-items:center}
+.input-sm{padding:7px 10px;border:1px solid var(--border);border-radius:7px;font-size:13px;flex:1}
+.import-group{margin-bottom:16px}
+.import-label{font-size:12px;font-weight:600;color:var(--muted);display:block;margin-bottom:6px}
+.file-input-label{display:inline-block;padding:7px 14px;background:var(--bg);border:1px solid var(--border);border-radius:7px;cursor:pointer;font-size:13px;color:#555}
+.file-input-label input{display:none}
+.file-input-label:hover{background:#e8ecf4}
+.import-result{font-size:12px;margin-top:8px;padding:6px 10px;border-radius:6px;display:none}
+.import-result.success{background:#f0fdf4;color:#166534;display:block}
+.import-result.error{background:#fef2f2;color:#991b1b;display:block}
+
+/* MOBILE */
+.mobile-nav{display:none;position:fixed;bottom:0;left:0;right:0;background:#fff;border-top:1px solid var(--border);z-index:100}
+.mobile-nav-btn{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:8px;border:none;background:none;cursor:pointer;font-size:10px;color:var(--muted);gap:3px}
+.mobile-nav-btn span:first-child{font-size:18px}
+.mobile-nav-btn.active{color:var(--blue)}
+.mobile-new-center{background:var(--blue);color:#fff;border-radius:50%;width:44px;height:44px;font-size:22px;display:flex;align-items:center;justify-content:center}
+
+@media(max-width:640px){
+  .pc-nav,.header-right{display:none}
+  .mobile-nav{display:flex}
+  .main{padding:12px 12px 70px}
+  .form-grid{grid-template-columns:1fr}
+  .summary-grid{grid-template-columns:1fr 1fr}
+  .summary-grid .summary-card:last-child{grid-column:1/-1}
+  .toolbar{flex-direction:column;align-items:stretch}
+  .toolbar-right{flex-wrap:wrap}
+  .search-input{width:100%;flex:1}
+  .tx-cat,.tx-payment{display:none}
+  .tx-row{gap:7px}
+  .chart-wrap{height:200px}
+}
+</style>
+</head>
+<body>
+
+<!-- LOGIN -->
+<div id="login-screen">
+  <div class="login-card">
+    <h1>家計簿</h1>
+    <p>Googleアカウントでログインしてください</p>
+    <button id="btn-login" class="btn-google">
+      <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google">
+      Googleでログイン
+    </button>
+  </div>
+</div>
+
+<!-- APP -->
+<div id="app" style="display:none">
+  <header class="header">
+    <div class="header-inner">
+      <span class="logo">家計簿</span>
+      <nav class="pc-nav">
+        <button class="nav-btn active" data-tab="list">一覧</button>
+        <button class="nav-btn" data-tab="analysis">分析</button>
+        <button class="nav-btn" data-tab="budget">予算</button>
+        <button class="nav-btn" data-tab="settings">設定</button>
+      </nav>
+      <div class="header-right">
+        <span id="user-name"></span>
+        <button id="btn-logout" class="btn-logout">ログアウト</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="main">
+    <!-- 一覧 -->
+    <div id="tab-list" class="tab active">
+      <div class="toolbar">
+        <div class="filter-views" id="filter-views"></div>
+        <div class="toolbar-right">
+          <input type="text" id="search-input" class="search-input" placeholder="名前・カテゴリーで検索" maxlength="100" autocomplete="off">
+          <button id="btn-bulk" class="btn-outline">一括編集</button>
+          <button id="btn-new" class="btn-primary">＋ 新規</button>
+        </div>
+      </div>
+      <div id="bulk-bar" class="bulk-bar" style="display:none">
+        <span id="bulk-count">0件選択中</span>
+        <select id="bulk-status" class="select-sm">
+          <option value="">ステータスを選択</option>
+          <option value="未処理">未処理</option>
+          <option value="登録済み">登録済み</option>
+          <option value="登録不要">登録不要</option>
+        </select>
+        <button id="btn-bulk-apply" class="btn-primary-sm">適用</button>
+        <button id="btn-bulk-cancel" class="btn-outline-sm">キャンセル</button>
+      </div>
+      <div id="transaction-list" class="transaction-list"><div class="empty-state">読み込み中...</div></div>
+      <div id="pagination-bar" class="pagination-bar">
+        <span id="pagination-info"></span>
+        <div class="page-size-selector">表示: <button class="page-size-btn active" data-size="20">20</button><button class="page-size-btn" data-size="50">50</button><button class="page-size-btn" data-size="100">100</button></div>
+        <div class="page-nav"><button id="btn-prev" class="btn-page" disabled>‹ 前へ</button><button id="btn-next" class="btn-page">次へ ›</button></div>
+      </div>
+    </div>
+
+    <!-- 分析 -->
+    <div id="tab-analysis" class="tab">
+      <div class="analysis-filter">
+        <select id="analysis-year" class="select-sm"><option value="all">全期間</option></select>
+        <select id="analysis-month" class="select-sm"><option value="all">全月</option><option value="01">1月</option><option value="02">2月</option><option value="03">3月</option><option value="04">4月</option><option value="05">5月</option><option value="06">6月</option><option value="07">7月</option><option value="08">8月</option><option value="09">9月</option><option value="10">10月</option><option value="11">11月</option><option value="12">12月</option></select>
+      </div>
+      <div class="summary-grid">
+        <div class="summary-card"><div class="summary-label">支出合計</div><div class="summary-value expense" id="sum-exp">¥0</div></div>
+        <div class="summary-card"><div class="summary-label">収入合計</div><div class="summary-value income" id="sum-inc">¥0</div></div>
+        <div class="summary-card"><div class="summary-label">収支</div><div class="summary-value" id="sum-bal">¥0</div></div>
+      </div>
+      <div class="chart-card"><div class="chart-title">月別収支</div><div class="chart-wrap"><canvas id="chart-monthly"></canvas></div></div>
+      <div class="chart-card"><div class="chart-title">カテゴリー別支出</div><div class="chart-wrap"><canvas id="chart-category"></canvas></div></div>
+      <div class="chart-card"><div class="chart-title">年次推移（月別支出）</div><div class="chart-wrap"><canvas id="chart-yearly"></canvas></div></div>
+    </div>
+
+    <!-- 予算 -->
+    <div id="tab-budget" class="tab">
+      <div class="budget-header">
+        <select id="budget-year" class="select-sm"></select>
+        <select id="budget-month" class="select-sm"></select>
+        <button id="btn-save-budget" class="btn-primary-sm">保存</button>
+      </div>
+      <div class="budget-total-card">
+        <div class="budget-label">月次合計予算</div>
+        <div class="budget-input-row"><input type="number" id="budget-total" class="budget-input" placeholder="0" min="0" max="999999999" step="1"><span>円</span></div>
+        <div id="budget-total-progress"></div>
+      </div>
+      <div id="budget-categories"></div>
+    </div>
+
+    <!-- 設定 -->
+    <div id="tab-settings" class="tab">
+      <div class="settings-section">
+        <h3>カテゴリー管理</h3>
+        <div class="category-type-toggle">
+          <button class="cat-type-btn active" data-type="expense">支出</button>
+          <button class="cat-type-btn" data-type="income">収入</button>
+        </div>
+        <div id="category-list" class="category-list"></div>
+        <div class="add-category-row">
+          <input type="text" id="new-category-name" class="input-sm" placeholder="新しいカテゴリー名" maxlength="50" autocomplete="off">
+          <button id="btn-add-category" class="btn-primary-sm">追加</button>
+        </div>
+      </div>
+      <div class="settings-section">
+        <h3>Notionインポート</h3>
+        <p class="settings-hint">NotionからエクスポートしたCSVをインポートします。重複データは自動スキップします。</p>
+        <div class="import-group">
+          <span class="import-label">支出CSV</span>
+          <label class="file-input-label">📂 ファイルを選択<input type="file" id="import-expense" accept=".csv"></label>
+          <div id="import-expense-result" class="import-result"></div>
+        </div>
+        <div class="import-group">
+          <span class="import-label">収入CSV</span>
+          <label class="file-input-label">📂 ファイルを選択<input type="file" id="import-income" accept=".csv"></label>
+          <div id="import-income-result" class="import-result"></div>
+        </div>
+      </div>
+      <div class="settings-section">
+        <h3>データエクスポート</h3>
+        <p class="settings-hint">全データをCSVファイルとしてダウンロードします</p>
+        <button id="btn-export" class="btn-outline">CSVをダウンロード</button>
+      </div>
+    </div>
+  </main>
+
+  <nav class="mobile-nav">
+    <button class="mobile-nav-btn active" data-tab="list"><span>☰</span><span>一覧</span></button>
+    <button class="mobile-nav-btn" id="mobile-new-btn"><span class="mobile-new-center">＋</span><span>登録</span></button>
+  </nav>
+</div>
+
+<!-- MODAL -->
+<div id="modal-overlay" class="modal-overlay">
+  <div class="modal">
+    <div class="modal-header"><h2 id="modal-title">新規登録</h2><button id="btn-modal-close" class="modal-close">×</button></div>
+    <div class="modal-body">
+      <div class="type-toggle"><button id="btn-expense" class="type-btn active expense">支出</button><button id="btn-income" class="type-btn income">収入</button></div>
+      <div class="form-grid">
+        <div class="form-group"><label>名前 <span class="required">*</span></label><input type="text" id="f-name" placeholder="例：マクドナルド" maxlength="200" autocomplete="off"></div>
+        <div class="form-group"><label>日付 <span class="required">*</span></label><input type="date" id="f-date"></div>
+        <div class="form-group"><label>金額 <span class="required">*</span></label><input type="number" id="f-amount" placeholder="0" min="0" max="999999999" step="1"></div>
+        <div class="form-group"><label>カテゴリー <span class="required">*</span></label><select id="f-category"></select></div>
+        <div class="form-group" id="f-payment-group"><label>支払い方法</label><select id="f-payment"><option value="未設定">未設定</option><option value="現金">現金</option><option value="クレジットカード">クレジットカード</option><option value="電子マネー">電子マネー</option><option value="口座振替">口座振替</option></select></div>
+        <div class="form-group"><label>freeeステータス</label><select id="f-freee-status"><option value="未処理">未処理</option><option value="登録済み">登録済み</option><option value="登録不要">登録不要</option></select></div>
+        <div class="form-group full-width"><label>メモ</label><textarea id="f-memo" rows="2" placeholder="任意" maxlength="1000"></textarea></div>
+      </div>
+    </div>
+    <div class="modal-footer"><button id="btn-delete" class="btn-danger" style="display:none">削除</button><div class="modal-footer-right"><button id="btn-cancel" class="btn-outline">キャンセル</button><button id="btn-save" class="btn-primary">保存</button></div></div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div id="toast" class="toast" style="display:none">
+  <div class="toast-row"><span class="toast-msg">削除しました</span><button id="toast-undo" class="toast-undo">元に戻す</button><button id="toast-close" class="toast-close">×</button></div>
+  <div class="toast-progress"><div id="toast-progress-fill" class="toast-progress-fill" style="width:100%"></div></div>
+</div>
+
+<script type="module">
+import{initializeApp}from"https://www.gstatic.com/firebasejs/12.13.0/firebase-app.js";
+import{getAuth,GoogleAuthProvider,signInWithPopup,signOut,onAuthStateChanged}from"https://www.gstatic.com/firebasejs/12.13.0/firebase-auth.js";
+import{getFirestore,collection,doc,addDoc,setDoc,updateDoc,deleteDoc,getDocs,getDoc,query,where,orderBy,serverTimestamp,writeBatch}from"https://www.gstatic.com/firebasejs/12.13.0/firebase-firestore.js";
+
+const cfg={apiKey:"AIzaSyB_uzvw2REOyJSSGxQlFUYqzsmRB7Pn7A8",authDomain:"ys-kakeibo.firebaseapp.com",projectId:"ys-kakeibo",storageBucket:"ys-kakeibo.firebasestorage.app",messagingSenderId:"563886256006",appId:"1:563886256006:web:fb04a63047a713f6068607"};
+const fireapp=initializeApp(cfg);
+const auth=getAuth(fireapp);
+const db=getFirestore(fireapp);
+
+const $=id=>document.getElementById(id);
+const fmt=n=>'¥'+Math.round(n).toLocaleString();
+const today=()=>new Date().toISOString().slice(0,10);
+
+// SECURITY HELPERS
+// HTML escape: テンプレートリテラルでinnerHTMLに埋め込む全ての動的値に適用
+const esc=s=>String(s??'').replace(/[&<>"'`=\/]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;','`':'&#96;','=':'&#61;','/':'&#47;'}[c]));
+// CSV escape: 数式インジェクション(=,+,-,@,Tab,CR で始まる場合)対策 + ダブルクォート対策
+const csvEscape=v=>{const s=String(v??'');const safe=/^[=+\-@\t\r]/.test(s)?"'"+s:s;return`"${safe.replace(/"/g,'""')}"`};
+// 入力検証
+const isValidDate=s=>/^\d{4}-\d{2}-\d{2}$/.test(s)&&!isNaN(new Date(s).getTime());
+const sanitizeStr=(s,max)=>String(s??'').trim().slice(0,max);
+const sanitizeAmt=v=>{const n=parseInt(v);return Number.isFinite(n)&&n>=0&&n<=999999999?n:NaN};
+
+let S={userId:null,tab:'list',filter:'要照合',search:'',pageSize:20,page:0,all:[],shown:[],cats:[],bulk:false,sel:new Set(),editId:null,type:'expense',charts:{},undoTimer:null,undoData:null,catType:'expense'};
+
+const txCol=()=>collection(db,'users',S.userId,'transactions');
+const catCol=()=>collection(db,'users',S.userId,'categories');
+const budCol=()=>collection(db,'users',S.userId,'budgets');
+
+// AUTH
+$('btn-login').onclick=async()=>{try{await signInWithPopup(auth,new GoogleAuthProvider())}catch(e){alert('ログイン失敗: '+e.message)}};
+$('btn-logout').onclick=async()=>{if(confirm('ログアウトしますか？'))await signOut(auth)};
+onAuthStateChanged(auth,async u=>{
+  if(u){S.userId=u.uid;$('user-name').textContent=u.displayName||'';$('login-screen').style.display='none';$('app').style.display='block';
+    await initUser(u);await loadCats();await loadTx()}
+  else{S.userId=null;$('login-screen').style.display='flex';$('app').style.display='none'}
+});
+
+async function initUser(u){
+  const ref=doc(db,'users',S.userId);const snap=await getDoc(ref);
+  if(!snap.exists()){await setDoc(ref,{email:u.email,displayName:u.displayName,createdAt:serverTimestamp()});await seedCats()}
+}
+
+// CATEGORIES
+const EC=['固定費','水道光熱費','食費','消耗品','交通費','医療費','通信費','翠優関連','身だしなみ','交際費','外食','娯楽','書籍・勉強代','投資','その他'];
+const IC=['給与','給付・手当','ポイント','投資・利息'];
+
+async function seedCats(){
+  const b=writeBatch(db);
+  EC.forEach((n,i)=>b.set(doc(catCol()),{name:n,type:'expense',order:i,createdAt:serverTimestamp()}));
+  IC.forEach((n,i)=>b.set(doc(catCol()),{name:n,type:'income',order:i,createdAt:serverTimestamp()}));
+  await b.commit();
+}
+
+async function loadCats(){
+  const snap=await getDocs(query(catCol(),orderBy('order')));
+  S.cats=snap.docs.map(d=>({id:d.id,...d.data()}));
+  renderCatSettings();renderBudCats();
+}
+
+const getCat=id=>S.cats.find(c=>c.id===id);
+const getCatName=id=>{const c=getCat(id);return c?c.name:'削除済みカテゴリー'};
+
+async function addCat(){
+  const name=sanitizeStr($('new-category-name').value,50);if(!name)return;
+  const type=S.catType;const order=S.cats.filter(c=>c.type===type).length;
+  await addDoc(catCol(),{name,type,order,createdAt:serverTimestamp()});
+  $('new-category-name').value='';await loadCats();updateCatSel();
+}
+
+async function delCat(id){
+  if(!confirm('削除しますか？過去データのカテゴリー名は保持されます。'))return;
+  await deleteDoc(doc(catCol(),id));await loadCats();updateCatSel();
+}
+
+function renderCatSettings(){
+  const list=$('category-list');
+  list.innerHTML=S.cats.filter(c=>c.type===S.catType).map(c=>`<div class="cat-item"><span>${esc(c.name)}</span><button class="del-cat-btn" data-id="${esc(c.id)}">×</button></div>`).join('');
+  list.querySelectorAll('.del-cat-btn').forEach(b=>b.onclick=()=>delCat(b.dataset.id));
+}
+
+function updateCatSel(){
+  const sel=$('f-category');
+  sel.innerHTML=S.cats.filter(c=>c.type===S.type).map(c=>`<option value="${esc(c.id)}">${esc(c.name)}</option>`).join('');
+}
+
+// TRANSACTIONS
+async function loadTx(){
+  let q;const f=S.filter;
+  if(f==='要照合')q=query(txCol(),where('freeeStatus','==','未処理'),orderBy('date','desc'));
+  else if(f==='照合済')q=query(txCol(),where('freeeStatus','==','登録済み'),orderBy('date','desc'));
+  else if(f==='登録不要')q=query(txCol(),where('freeeStatus','==','登録不要'),orderBy('date','desc'));
+  else q=query(txCol(),orderBy('date','desc'));
+  const snap=await getDocs(q);
+  S.all=snap.docs.map(d=>({id:d.id,...d.data()}));
+  applySearch();await renderBadges();S.page=0;renderList();
+}
+
+async function renderBadges(){
+  const snap=await getDocs(txCol());const all=snap.docs.map(d=>d.data());
+  const cnt={'要照合':all.filter(t=>t.freeeStatus==='未処理').length,'全件':all.length,'照合済':all.filter(t=>t.freeeStatus==='登録済み').length,'登録不要':all.filter(t=>t.freeeStatus==='登録不要').length};
+  $('filter-views').innerHTML=['要照合','全件','照合済','登録不要'].map(v=>`<button class="filter-btn${S.filter===v?' active':''}" data-view="${v}">${v}<span class="badge">${cnt[v]}</span></button>`).join('');
+  $('filter-views').querySelectorAll('.filter-btn').forEach(b=>b.onclick=async()=>{S.filter=b.dataset.view;S.page=0;await loadTx()});
+}
+
+function applySearch(){
+  const q=S.search.toLowerCase();
+  S.shown=q?S.all.filter(t=>t.name.toLowerCase().includes(q)||getCatName(t.categoryId).toLowerCase().includes(q)||String(t.amount).includes(q)):S.all;
+}
+
+function renderList(){
+  const list=$('transaction-list');const ps=S.pageSize;const start=S.page*ps;const page=S.shown.slice(start,start+ps);
+  if(!page.length){list.innerHTML='<div class="empty-state">データがありません</div>';$('pagination-info').textContent='';$('btn-prev').disabled=true;$('btn-next').disabled=true;return}
+  list.innerHTML=page.map(t=>{
+    const catN=getCatName(t.categoryId);const isE=t.type==='expense';
+    const sc={未処理:'status-pending',登録済み:'status-done',登録不要:'status-skip'}[t.freeeStatus]||'';
+    return`<div class="tx-row${S.bulk&&S.sel.has(t.id)?' selected':''}" data-id="${esc(t.id)}">
+      ${S.bulk?`<input type="checkbox" class="tx-check" data-id="${esc(t.id)}"${S.sel.has(t.id)?' checked':''}>`:''}
+      <span class="tx-date">${esc(t.date?t.date.slice(5).replace('-','/'):'--/--')}</span>
+      <span class="tx-type-dot ${isE?'dot-exp':'dot-inc'}"></span>
+      <span class="tx-name" title="${esc(t.name)}">${esc(t.name)}</span>
+      <span class="tx-cat">${esc(catN)}</span>
+      <span class="tx-amount ${isE?'amt-exp':'amt-inc'}">${isE?'-':'+'}${fmt(t.amount)}</span>
+      <button class="status-btn ${sc}" data-id="${esc(t.id)}" data-st="${esc(t.freeeStatus||'')}">${esc(t.freeeStatus||'')}</button>
+      <button class="edit-btn" data-id="${esc(t.id)}">編集</button></div>`;
+  }).join('');
+  if(S.bulk)list.querySelectorAll('.tx-check').forEach(cb=>cb.onchange=()=>{const id=cb.dataset.id;cb.checked?S.sel.add(id):S.sel.delete(id);updateBulkCnt();renderList()});
+  list.querySelectorAll('.status-btn').forEach(b=>b.onclick=async e=>{
+    e.stopPropagation();const cyc={'未処理':'登録済み','登録済み':'登録不要','登録不要':'未処理'};
+    await updateDoc(doc(txCol(),b.dataset.id),{freeeStatus:cyc[b.dataset.st]||'未処理',updatedAt:serverTimestamp()});await loadTx();
+  });
+  list.querySelectorAll('.edit-btn').forEach(b=>b.onclick=e=>{e.stopPropagation();openEdit(b.dataset.id)});
+  $('pagination-info').textContent=`${start+1}〜${Math.min(start+ps,S.shown.length)} / ${S.shown.length}件`;
+  $('btn-prev').disabled=S.page===0;$('btn-next').disabled=start+ps>=S.shown.length;
+}
+
+// CRUD
+function openNew(){
+  S.editId=null;$('modal-title').textContent='新規登録';$('btn-delete').style.display='none';
+  $('f-date').value=today();$('f-name').value='';$('f-amount').value='';$('f-memo').value='';
+  $('f-freee-status').value='未処理';$('f-payment').value='未設定';setType('expense');showModal();
+}
+
+async function openEdit(id){
+  const tx=S.all.find(t=>t.id===id);if(!tx)return;
+  S.editId=id;$('modal-title').textContent='編集';$('btn-delete').style.display='inline-block';
+  $('f-name').value=tx.name||'';$('f-date').value=tx.date||today();$('f-amount').value=tx.amount||'';
+  $('f-memo').value=tx.memo||'';$('f-freee-status').value=tx.freeeStatus||'未処理';$('f-payment').value=tx.paymentMethod||'未設定';
+  setType(tx.type||'expense');setTimeout(()=>$('f-category').value=tx.categoryId||'',60);showModal();
+}
+
+function setType(t){
+  S.type=t;$('btn-expense').classList.toggle('active',t==='expense');$('btn-income').classList.toggle('active',t==='income');
+  $('f-payment-group').style.display=t==='expense'?'':'none';updateCatSel();
+}
+
+const showModal=()=>$('modal-overlay').style.display='flex';
+const hideModal=()=>$('modal-overlay').style.display='none';
+
+async function saveTx(){
+  const name=sanitizeStr($('f-name').value,200);const date=$('f-date').value;
+  const amount=sanitizeAmt($('f-amount').value);
+  const categoryId=$('f-category').value;const categoryName=getCatName(categoryId);
+  const memo=sanitizeStr($('f-memo').value,1000);
+  if(!name){alert('名前を入力してください');return}
+  if(!isValidDate(date)){alert('日付を正しく入力してください');return}
+  if(!Number.isFinite(amount)||amount<=0){alert('金額を正しく入力してください（0〜999,999,999円）');return}
+  if(!categoryId||!S.cats.find(c=>c.id===categoryId&&c.type===S.type)){alert('カテゴリーが不正です');return}
+  const ps=$('f-payment').value;const validPm=['未設定','現金','クレジットカード','電子マネー','口座振替'];
+  const validFs=['未処理','登録済み','登録不要'];
+  const validType=['expense','income'].includes(S.type)?S.type:'expense';
+  const d={type:validType,name,date,amount,categoryId,categoryName,
+    freeeStatus:validFs.includes($('f-freee-status').value)?$('f-freee-status').value:'未処理',
+    paymentMethod:validPm.includes(ps)?ps:'未設定',
+    memo,updatedAt:serverTimestamp()};
+  if(S.editId)await updateDoc(doc(txCol(),S.editId),d);
+  else{d.createdAt=serverTimestamp();await addDoc(txCol(),d)}
+  hideModal();await loadTx();
+}
+
+async function delTx(){
+  if(!S.editId)return;const tx=S.all.find(t=>t.id===S.editId);
+  S.undoData={id:S.editId,data:tx};await deleteDoc(doc(txCol(),S.editId));
+  hideModal();await loadTx();showToast();
+}
+
+// BULK
+function toggleBulk(){S.bulk=!S.bulk;S.sel.clear();$('bulk-bar').style.display=S.bulk?'flex':'none';$('btn-bulk').textContent=S.bulk?'終了':'一括編集';renderList()}
+function updateBulkCnt(){$('bulk-count').textContent=`${S.sel.size}件選択中`}
+async function applyBulk(){
+  const st=$('bulk-status').value;if(!st||!S.sel.size)return;
+  const b=writeBatch(db);S.sel.forEach(id=>b.update(doc(txCol(),id),{freeeStatus:st,updatedAt:serverTimestamp()}));
+  await b.commit();S.sel.clear();$('bulk-status').value='';await loadTx();updateBulkCnt();
+}
+
+// TOAST
+function showToast(){
+  const t=$('toast');t.style.display='flex';
+  const fill=$('toast-progress-fill');fill.style.transition='none';fill.style.width='100%';
+  setTimeout(()=>{fill.style.transition='width 30s linear';fill.style.width='0%'},50);
+  if(S.undoTimer)clearTimeout(S.undoTimer);S.undoTimer=setTimeout(hideToast,30000);
+}
+function hideToast(){$('toast').style.display='none';if(S.undoTimer)clearTimeout(S.undoTimer);S.undoData=null}
+async function undoDel(){
+  if(!S.undoData)return;await setDoc(doc(txCol(),S.undoData.id),S.undoData.data);hideToast();await loadTx();
+}
+
+// CSV IMPORT
+function parseLine(l){const r=[];let c='',q=false;for(let i=0;i<l.length;i++){const ch=l[i];if(ch==='"'){if(q&&l[i+1]==='"'){c+='"';i++}else q=!q}else if(ch===','&&!q){r.push(c);c=''}else c+=ch}r.push(c);return r}
+function parseCSVText(txt){if(txt.charCodeAt(0)===0xFEFF)txt=txt.slice(1);const lines=txt.split(/\r?\n/).map(l=>l.trim()).filter(l=>l);if(!lines.length)return[];const hdrs=parseLine(lines[0]);return lines.slice(1).map(l=>{const vs=parseLine(l);const o={};hdrs.forEach((h,i)=>o[h.trim()]=(vs[i]||'').trim());return o}).filter(r=>Object.values(r).some(v=>v))}
+function parseDt(s){if(!s)return'';let m=s.match(/(\d{4})年(\d{1,2})月(\d{1,2})日/);if(m)return`${m[1]}-${m[2].padStart(2,'0')}-${m[3].padStart(2,'0')}`;if(/^\d{4}-\d{2}-\d{2}/.test(s))return s.slice(0,10);m=s.match(/(\d{4})\/(\d{1,2})\/(\d{1,2})/);if(m)return`${m[1]}-${m[2].padStart(2,'0')}-${m[3].padStart(2,'0')}`;return s}
+function parseAmt(s){return parseInt((s||'').replace(/[¥,￥\s]/g,''))||0}
+function parseBool(s){return['yes','true','1'].includes((s||'').toLowerCase())}
+function findCatId(name,type){const c=S.cats.find(c=>c.name===name&&c.type===type);return c?c.id:S.cats.find(c=>c.type===type)?.id||''}
+
+async function importFile(file,type,resultEl){
+  try{
+    if(file.size>5*1024*1024){throw new Error('ファイルサイズが大きすぎます（5MB以下）')}
+    const txt=await file.text();const rows=parseCSVText(txt);
+    if(rows.length>10000){throw new Error('行数が多すぎます（10000行以下）')}
+    const exSnap=await getDocs(query(txCol(),where('importKey','!=','')));
+    const keys=new Set(exSnap.docs.map(d=>d.data().importKey).filter(Boolean));
+    const b=writeBatch(db);let added=0,skipped=0,bc=0;
+    for(const row of rows){
+      const name=sanitizeStr(row['名前'],200);const date=parseDt(row['日付']);
+      const amount=parseAmt(type==='expense'?row['支出']:row['収入']);
+      const catN=sanitizeStr(row['カテゴリー'],50)||(type==='expense'?'その他':'給与');
+      if(!name||!isValidDate(date)||!amount||amount<=0||amount>999999999){skipped++;continue}
+      const ik=`${date}_${name}_${amount}`;if(keys.has(ik)){skipped++;continue}
+      let fs='未処理';
+      if(type==='expense'){if(parseBool(row['計上不要']))fs='登録不要';else if(parseBool(row['free登録']))fs='登録済み'}
+      else{if(parseBool(row['プロパティ']))fs='登録済み'}
+      const catId=findCatId(catN,type);
+      b.set(doc(txCol()),{type,name,date,amount,categoryId:catId,categoryName:catN,freeeStatus:fs,paymentMethod:'未設定',memo:'',importKey:ik,createdAt:serverTimestamp(),updatedAt:serverTimestamp()});
+      keys.add(ik);added++;bc++;
+      if(bc>=490){await b.commit();bc=0}
+    }
+    if(bc>0)await b.commit();
+    resultEl.className='import-result success';resultEl.textContent=`完了: ${added}件追加、${skipped}件スキップ`;
+    await loadTx();
+  }catch(e){resultEl.className='import-result error';resultEl.textContent='エラー: '+esc(e.message)}
+}
+
+// EXPORT
+async function exportCSV(){
+  const snap=await getDocs(query(txCol(),orderBy('date','desc')));
+  const rows=snap.docs.map(d=>{const t=d.data();return[
+    t.type==='expense'?'支出':'収入',
+    csvEscape(t.name),
+    t.date,
+    t.amount,
+    csvEscape(getCatName(t.categoryId)),
+    csvEscape(t.freeeStatus),
+    csvEscape(t.paymentMethod||''),
+    csvEscape(t.memo||'')
+  ].join(',')});
+  const csv='\uFEFF種別,名前,日付,金額,カテゴリー,freeeステータス,支払い方法,メモ\n'+rows.join('\n');
+  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8;'}));a.download=`kakeibo_${today()}.csv`;a.click();
+}
+
+// ANALYSIS
+async function loadAnalysis(){
+  const yr=$('analysis-year').value;const mo=$('analysis-month').value;
+  const snap=await getDocs(query(txCol(),orderBy('date','desc')));
+  let txs=snap.docs.map(d=>d.data());
+  const years=[...new Set(txs.map(t=>t.date?.slice(0,4)))].filter(Boolean).sort().reverse();
+  const yel=$('analysis-year');
+  if(yel.options.length<=1){years.forEach(y=>{if(!yel.querySelector(`option[value="${y}"]`)){const o=document.createElement('option');o.value=y;o.textContent=y+'年';yel.appendChild(o)}})}
+  if(yr!=='all')txs=txs.filter(t=>t.date?.startsWith(yr));
+  if(mo!=='all')txs=txs.filter(t=>t.date?.slice(5,7)===mo);
+  const exps=txs.filter(t=>t.type==='expense');const incs=txs.filter(t=>t.type==='income');
+  const te=exps.reduce((s,t)=>s+t.amount,0);const ti=incs.reduce((s,t)=>s+t.amount,0);const bal=ti-te;
+  $('sum-exp').textContent=fmt(te);$('sum-inc').textContent=fmt(ti);
+  const bel=$('sum-bal');bel.textContent=(bal<0?'-':'')+fmt(Math.abs(bal));bel.className='summary-value '+(bal>=0?'positive':'negative');
+  renderMonthly(txs,yr);renderCatChart(exps);renderYearly(snap.docs.map(d=>d.data()));
+}
+
+const PAL=['#4f6ef7','#ef4444','#22c55e','#f97316','#a855f7','#14b8a6','#eab308','#ec4899','#6b7280','#0ea5e9','#84cc16','#f43f5e'];
+
+function renderMonthly(txs,yr){
+  const months=yr==='all'?[...new Set(txs.map(t=>t.date?.slice(0,7)))].filter(Boolean).sort():Array.from({length:12},(_,i)=>`${yr}-${String(i+1).padStart(2,'0')}`);
+  const em={},im={};months.forEach(m=>{em[m]=0;im[m]=0});
+  txs.forEach(t=>{const m=t.date?.slice(0,7);if(m&&em[m]!==undefined){if(t.type==='expense')em[m]+=t.amount;else im[m]+=t.amount}});
+  const labels=months.map(m=>{const[y,mo]=m.split('-');return yr==='all'?`${y}/${parseInt(mo)}月`:`${parseInt(mo)}月`});
+  if(S.charts.monthly)S.charts.monthly.destroy();
+  S.charts.monthly=new Chart($('chart-monthly'),{type:'bar',data:{labels,datasets:[{label:'支出',data:months.map(m=>em[m]),backgroundColor:'#ef444488',borderColor:'#ef4444',borderWidth:1},{label:'収入',data:months.map(m=>im[m]),backgroundColor:'#22c55e88',borderColor:'#22c55e',borderWidth:1}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'top'}},scales:{x:{ticks:{autoSkip:true,maxRotation:45,font:{size:11}}},y:{ticks:{callback:v=>'¥'+Math.round(v/1000)+'k',font:{size:11}}}}}})}
+
+function renderCatChart(exps){
+  const map={};exps.forEach(t=>{const n=getCatName(t.categoryId);map[n]=(map[n]||0)+t.amount});
+  const sorted=Object.entries(map).sort((a,b)=>b[1]-a[1]);
+  if(S.charts.category)S.charts.category.destroy();
+  if(!sorted.length)return;
+  S.charts.category=new Chart($('chart-category'),{type:'doughnut',data:{labels:sorted.map(([k])=>k),datasets:[{data:sorted.map(([,v])=>v),backgroundColor:PAL.slice(0,sorted.length),borderWidth:1}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'right',labels:{font:{size:11}}},tooltip:{callbacks:{label:ctx=>`${ctx.label}: ${fmt(ctx.parsed)}`}}}}})}
+
+function renderYearly(allTx){
+  const years=[...new Set(allTx.map(t=>t.date?.slice(0,4)))].filter(Boolean).sort();
+  const months=Array.from({length:12},(_,i)=>String(i+1).padStart(2,'0'));
+  const datasets=years.map((y,i)=>({label:`${y}年`,data:months.map(m=>allTx.filter(t=>t.type==='expense'&&t.date?.startsWith(`${y}-${m}`)).reduce((s,t)=>s+t.amount,0)),borderColor:PAL[i%PAL.length],backgroundColor:'transparent',tension:0.3,pointRadius:3}));
+  if(S.charts.yearly)S.charts.yearly.destroy();
+  S.charts.yearly=new Chart($('chart-yearly'),{type:'line',data:{labels:months.map(m=>`${parseInt(m)}月`),datasets},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'top',labels:{font:{size:11}}}},scales:{y:{ticks:{callback:v=>'¥'+Math.round(v/1000)+'k',font:{size:11}}}}}})}
+
+// BUDGET
+function initBudSels(){
+  const now=new Date();const yr=$('budget-year');const mo=$('budget-month');
+  if(!yr.options.length){for(let y=now.getFullYear();y>=now.getFullYear()-5;y--){const o=document.createElement('option');o.value=y;o.textContent=y+'年';if(y===now.getFullYear())o.selected=true;yr.appendChild(o)}
+  for(let m=1;m<=12;m++){const o=document.createElement('option');o.value=String(m).padStart(2,'0');o.textContent=m+'月';if(m===now.getMonth()+1)o.selected=true;mo.appendChild(o)}}
+  loadBud();
+}
+
+async function loadBud(){
+  const yr=$('budget-year').value;const mo=$('budget-month').value;const key=`${yr}-${mo}`;
+  const snap=await getDoc(doc(budCol(),key));const bud=snap.exists()?snap.data():{totalBudget:0,categoryBudgets:{}};
+  $('budget-total').value=bud.totalBudget||'';
+  const txSnap=await getDocs(query(txCol(),where('type','==','expense')));
+  const monthTx=txSnap.docs.map(d=>d.data()).filter(t=>t.date?.startsWith(key));
+  const ta=monthTx.reduce((s,t)=>s+t.amount,0);
+  renderBudProgress('budget-total-progress',bud.totalBudget||0,ta);
+  renderBudCats(bud.categoryBudgets||{},monthTx);
+}
+
+function renderBudProgress(elId,bud,act){
+  const el=$(elId);if(!bud){el.innerHTML='';return}
+  const pct=Math.min((act/bud)*100,100);const over=act>bud;
+  el.innerHTML=`<div class="budget-progress-bar"><div class="budget-progress-fill${over?' over':''}" style="width:${pct}%"></div></div><div class="budget-progress-text"><span>${fmt(act)}</span><span class="${over?'over-text':''}">${over?'超過 '+fmt(act-bud):'残り '+fmt(bud-act)}</span></div>`;
+}
+
+function renderBudCats(catBud={},monthTx=[]){
+  const el=$('budget-categories');
+  el.innerHTML=S.cats.filter(c=>c.type==='expense').map(cat=>{
+    const b=catBud[cat.id]||0;const a=monthTx.filter(t=>t.categoryId===cat.id).reduce((s,t)=>s+t.amount,0);
+    const pct=b?Math.min((a/b)*100,100):0;const over=b&&a>b;
+    return`<div class="budget-cat-row"><span class="budget-cat-name">${esc(cat.name)}</span><div class="budget-cat-input-row"><input type="number" class="budget-cat-input" data-catid="${esc(cat.id)}" value="${b||''}" placeholder="0" min="0" max="999999999"><span>円</span></div>${b?`<div class="budget-cat-progress"><div class="budget-progress-bar sm"><div class="budget-progress-fill${over?' over':''}" style="width:${pct}%"></div></div><span class="budget-cat-actual${over?' over-text':''}">${fmt(a)} / ${fmt(b)}</span></div>`:`<span class="budget-no-budget">${fmt(a)}</span>`}</div>`;
+  }).join('');
+}
+
+async function saveBud(){
+  const yr=$('budget-year').value;const mo=$('budget-month').value;
+  if(!/^\d{4}$/.test(yr)||!/^(0[1-9]|1[0-2])$/.test(mo)){alert('年月が不正です');return}
+  const key=`${yr}-${mo}`;
+  const tbRaw=sanitizeAmt($('budget-total').value);const tb=Number.isFinite(tbRaw)?tbRaw:0;
+  const cb={};const validCatIds=new Set(S.cats.filter(c=>c.type==='expense').map(c=>c.id));
+  document.querySelectorAll('.budget-cat-input').forEach(inp=>{
+    const v=sanitizeAmt(inp.value);const cid=inp.dataset.catid;
+    if(Number.isFinite(v)&&v>0&&validCatIds.has(cid))cb[cid]=v;
+  });
+  await setDoc(doc(budCol(),key),{totalBudget:tb,categoryBudgets:cb,updatedAt:serverTimestamp()});
+  alert('保存しました');await loadBud();
+}
+
+// TABS
+function showTab(name){
+  S.tab=name;
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('.nav-btn,.mobile-nav-btn[data-tab]').forEach(b=>b.classList.remove('active'));
+  $(`tab-${name}`)?.classList.add('active');
+  document.querySelectorAll(`[data-tab="${name}"]`).forEach(b=>b.classList.add('active'));
+  if(name==='analysis')loadAnalysis();
+  if(name==='budget')initBudSels();
+}
+
+// EVENTS
+document.querySelectorAll('.nav-btn').forEach(b=>b.onclick=()=>showTab(b.dataset.tab));
+document.querySelectorAll('.mobile-nav-btn[data-tab]').forEach(b=>b.onclick=()=>showTab(b.dataset.tab));
+$('btn-new').onclick=openNew;$('mobile-new-btn').onclick=openNew;
+$('btn-modal-close').onclick=hideModal;$('btn-cancel').onclick=hideModal;
+$('modal-overlay').onclick=e=>{if(e.target===$('modal-overlay'))hideModal()};
+$('btn-expense').onclick=()=>setType('expense');$('btn-income').onclick=()=>setType('income');
+$('btn-save').onclick=saveTx;$('btn-delete').onclick=delTx;
+$('search-input').oninput=()=>{S.search=$('search-input').value;applySearch();S.page=0;renderList()};
+$('btn-bulk').onclick=toggleBulk;$('btn-bulk-apply').onclick=applyBulk;$('btn-bulk-cancel').onclick=toggleBulk;
+$('btn-prev').onclick=()=>{if(S.page>0){S.page--;renderList()}};
+$('btn-next').onclick=()=>{if((S.page+1)*S.pageSize<S.shown.length){S.page++;renderList()}};
+document.querySelectorAll('.page-size-btn').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('.page-size-btn').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active');S.pageSize=parseInt(b.dataset.size);S.page=0;renderList();
+});
+$('toast-undo').onclick=undoDel;$('toast-close').onclick=hideToast;
+$('analysis-year').onchange=loadAnalysis;$('analysis-month').onchange=loadAnalysis;
+$('btn-save-budget').onclick=saveBud;$('budget-year').onchange=loadBud;$('budget-month').onchange=loadBud;
+document.querySelectorAll('.cat-type-btn').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('.cat-type-btn').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active');S.catType=b.dataset.type;renderCatSettings();
+});
+$('btn-add-category').onclick=addCat;
+$('new-category-name').onkeypress=e=>{if(e.key==='Enter')addCat()};
+$('import-expense').onchange=async e=>{if(e.target.files[0]){await importFile(e.target.files[0],'expense',$('import-expense-result'));e.target.value=''}};
+$('import-income').onchange=async e=>{if(e.target.files[0]){await importFile(e.target.files[0],'income',$('import-income-result'));e.target.value=''}};
+$('btn-export').onclick=exportCSV;
+</script>
+</body>
+</html>
