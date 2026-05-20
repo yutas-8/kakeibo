@@ -455,21 +455,17 @@ function updateCatSel(){
 
 // TRANSACTIONS
 async function loadTx(){
-  let q;const f=S.filter;
-  if(f==='要照合')q=query(txCol(),where('freeeStatus','==','未処理'),orderBy('date','desc'));
-  else if(f==='照合済')q=query(txCol(),where('freeeStatus','==','登録済み'),orderBy('date','desc'));
-  else if(f==='登録不要')q=query(txCol(),where('freeeStatus','==','登録不要'),orderBy('date','desc'));
-  else q=query(txCol(),orderBy('date','desc'));
-  const snap=await getDocs(q);
-  S.all=snap.docs.map(d=>({id:d.id,...d.data()}));
-  applySearch();await renderBadges();S.page=0;renderList();
-}
-
-async function renderBadges(){
-  const snap=await getDocs(txCol());const all=snap.docs.map(d=>d.data());
+  const snap=await getDocs(query(txCol(),orderBy('date','desc')));
+  const all=snap.docs.map(d=>({id:d.id,...d.data()}));
+  const f=S.filter;
+  if(f==='要照合')S.all=all.filter(t=>t.freeeStatus==='未処理');
+  else if(f==='照合済')S.all=all.filter(t=>t.freeeStatus==='登録済み');
+  else if(f==='登録不要')S.all=all.filter(t=>t.freeeStatus==='登録不要');
+  else S.all=all;
   const cnt={'要照合':all.filter(t=>t.freeeStatus==='未処理').length,'全件':all.length,'照合済':all.filter(t=>t.freeeStatus==='登録済み').length,'登録不要':all.filter(t=>t.freeeStatus==='登録不要').length};
   $('filter-views').innerHTML=['要照合','全件','照合済','登録不要'].map(v=>`<button class="filter-btn${S.filter===v?' active':''}" data-view="${v}">${v}<span class="badge">${cnt[v]}</span></button>`).join('');
   $('filter-views').querySelectorAll('.filter-btn').forEach(b=>b.onclick=async()=>{S.filter=b.dataset.view;S.page=0;await loadTx()});
+  applySearch();S.page=0;renderList();
 }
 
 function applySearch(){
