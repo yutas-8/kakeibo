@@ -1,0 +1,99 @@
+rules_version = '2';
+
+// =====================================================================
+// 家計簿アプリ Firestore セキュリティルール
+// =====================================================================
+// 設計方針:
+// - 認証済みユーザーは自分のサブコレクション（users/{自分のUID}/...）のみ
+//   読み書き可能
+// - 他人のデータには一切アクセス不可（projectIdが公開されていても安全）
+// - 書き込み時にフィールド型・長さ・範囲を検証し、不正データを弾く
+// - 配下のコレクション (transactions / categories / budgets) に
+//   フィールドスキーマを定義
+// =====================================================================
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ---- 共通ヘルパ ----
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+    function isStr(v, maxLen) {
+      return v is string && v.size() <= maxLen;
+    }
+    function isAmt(v) {
+      return v is int && v >= 0 && v <= 999999999;
+    }
+    function isDateStr(v) {
+      return v is string && v.matches('^\\d{4}-\\d{2}-\\d{2}$');
+    }
+    function isFreeeStatus(v) {
+      return v in ['未処理', '登録済み', '登録不要'];
+    }
+    function isPayment(v) {
+      return v in ['未設定', '現金', 'クレジットカード', '電子マネー', '口座振替'];
+    }
+    function isTxType(v) {
+      return v in ['expense', 'income'];
+    }
+
+    // ---- ユーザールートドキュメント ----
+    // users/{userId}: 自分のドキュメントのみ読み書き可
+    match /users/{userId} {
+      allow read: if isOwner(userId);
+      allow create: if isOwner(userId)
+                    && request.resource.data.keys().hasOnly(['email', 'displayName', 'createdAt'])
+                    && isStr(request.resource.data.email, 200)
+                    && isStr(request.resource.data.displayName, 200);
+      allow update: if isOwner(userId);
+      allow delete: if false;
+
+      // ---- transactions ----
+      match /transactions/{txId} {
+        allow read: if isOwner(userId);
+        allow create, update: if isOwner(userId)
+                              && isTxType(request.resource.data.type)
+                              && isStr(request.resource.data.name, 200)
+                              && isDateStr(request.resource.data.date)
+                              && isAmt(request.resource.data.amount)
+                              && isStr(request.resource.data.categoryId, 100)
+                              && isStr(request.resource.data.categoryName, 100)
+                              && isFreeeStatus(request.resource.data.freeeStatus)
+                              && isPayment(request.resource.data.paymentMethod)
+                              && isStr(request.resource.data.memo, 1000);
+        allow delete: if isOwner(userId);
+      }
+
+      // ---- categories ----
+      match /categories/{catId} {
+        allow read: if isOwner(userId);
+        allow create, update: if isOwner(userId)
+                              && isStr(request.resource.data.name, 50)
+                              && request.resource.data.type in ['expense', 'income']
+                              && request.resource.data.order is int
+                              && request.resource.data.order >= 0
+                              && request.resource.data.order < 1000;
+        allow delete: if isOwner(userId);
+      }
+
+      // ---- budgets ----
+      match /budgets/{budgetKey} {
+        allow read: if isOwner(userId);
+        allow create, update: if isOwner(userId)
+                              && budgetKey.matches('^\\d{4}-(0[1-9]|1[0-2])$')
+                              && isAmt(request.resource.data.totalBudget)
+                              && request.resource.data.categoryBudgets is map;
+        allow delete: if isOwner(userId);
+      }
+    }
+
+    // 上記以外は全拒否（デフォルトdeny）
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
