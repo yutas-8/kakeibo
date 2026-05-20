@@ -455,17 +455,22 @@ function updateCatSel(){
 
 // TRANSACTIONS
 async function loadTx(){
-  const snap=await getDocs(query(txCol(),orderBy('date','desc')));
-  const all=snap.docs.map(d=>({id:d.id,...d.data()}));
-  const f=S.filter;
-  if(f==='要照合')S.all=all.filter(t=>t.freeeStatus==='未処理');
-  else if(f==='照合済')S.all=all.filter(t=>t.freeeStatus==='登録済み');
-  else if(f==='登録不要')S.all=all.filter(t=>t.freeeStatus==='登録不要');
-  else S.all=all;
-  const cnt={'要照合':all.filter(t=>t.freeeStatus==='未処理').length,'全件':all.length,'照合済':all.filter(t=>t.freeeStatus==='登録済み').length,'登録不要':all.filter(t=>t.freeeStatus==='登録不要').length};
-  $('filter-views').innerHTML=['要照合','全件','照合済','登録不要'].map(v=>`<button class="filter-btn${S.filter===v?' active':''}" data-view="${v}">${v}<span class="badge">${cnt[v]}</span></button>`).join('');
-  $('filter-views').querySelectorAll('.filter-btn').forEach(b=>b.onclick=async()=>{S.filter=b.dataset.view;S.page=0;await loadTx()});
-  applySearch();S.page=0;renderList();
+  try{
+    const snap=await getDocs(query(txCol(),orderBy('date','desc')));
+    const all=snap.docs.map(d=>({id:d.id,...d.data()}));
+    const f=S.filter;
+    if(f==='要照合')S.all=all.filter(t=>t.freeeStatus==='未処理');
+    else if(f==='照合済')S.all=all.filter(t=>t.freeeStatus==='登録済み');
+    else if(f==='登録不要')S.all=all.filter(t=>t.freeeStatus==='登録不要');
+    else S.all=all;
+    const cnt={'要照合':all.filter(t=>t.freeeStatus==='未処理').length,'全件':all.length,'照合済':all.filter(t=>t.freeeStatus==='登録済み').length,'登録不要':all.filter(t=>t.freeeStatus==='登録不要').length};
+    $('filter-views').innerHTML=['要照合','全件','照合済','登録不要'].map(v=>`<button class="filter-btn${S.filter===v?' active':''}" data-view="${v}">${v}<span class="badge">${cnt[v]}</span></button>`).join('');
+    $('filter-views').querySelectorAll('.filter-btn').forEach(b=>b.onclick=async()=>{S.filter=b.dataset.view;S.page=0;await loadTx()});
+    applySearch();S.page=0;renderList();
+  }catch(e){
+    $('transaction-list').innerHTML=`<div class="empty-state">データの読み込みに失敗しました。<br><small>${esc(e.message)}</small></div>`;
+    console.error('loadTx error:',e);
+  }
 }
 
 function applySearch(){
@@ -538,9 +543,14 @@ async function saveTx(){
     freeeStatus:validFs.includes($('f-freee-status').value)?$('f-freee-status').value:'未処理',
     paymentMethod:validPm.includes(ps)?ps:'未設定',
     memo,updatedAt:serverTimestamp()};
-  if(S.editId)await updateDoc(doc(txCol(),S.editId),d);
-  else{d.createdAt=serverTimestamp();await addDoc(txCol(),d)}
-  hideModal();await loadTx();
+  try{
+    if(S.editId)await updateDoc(doc(txCol(),S.editId),d);
+    else{d.createdAt=serverTimestamp();await addDoc(txCol(),d)}
+    hideModal();await loadTx();
+  }catch(e){
+    alert('保存に失敗しました。\n'+e.message);
+    console.error('saveTx error:',e);
+  }
 }
 
 async function delTx(){
