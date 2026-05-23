@@ -168,7 +168,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
 .cat-type-btn{padding:6px 20px;border:none;background:none;cursor:pointer;font-size:13px;font-weight:500;color:var(--muted)}
 .cat-type-btn.active{background:var(--blue);color:#fff}
 .category-list{display:flex;flex-direction:column;gap:6px;margin-bottom:12px}
-.cat-item{display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:var(--bg);border-radius:7px;font-size:13px}
+.cat-item{display:flex;align-items:center;gap:6px;padding:8px 12px;background:var(--bg);border-radius:7px;font-size:13px}.cat-item span{flex:1}.cat-move-btn{background:none;border:1px solid var(--border);border-radius:4px;width:24px;height:24px;cursor:pointer;font-size:12px;line-height:1;color:var(--muted);padding:0}.cat-move-btn:disabled{opacity:0.3;cursor:default}
 .del-cat-btn{background:none;border:none;cursor:pointer;color:#ccc;font-size:14px;padding:0 4px}
 .del-cat-btn:hover{color:var(--red)}
 .add-category-row{display:flex;gap:8px;align-items:center}
@@ -445,8 +445,22 @@ async function delCat(id){
 
 function renderCatSettings(){
   const list=$('category-list');
-  list.innerHTML=S.cats.filter(c=>c.type===S.catType).map(c=>`<div class="cat-item"><span>${esc(c.name)}</span><button class="del-cat-btn" data-id="${esc(c.id)}">×</button></div>`).join('');
+  const cats=S.cats.filter(c=>c.type===S.catType);
+  list.innerHTML=cats.map((c,i)=>`<div class="cat-item"><button class="cat-move-btn" data-id="${esc(c.id)}" data-dir="-1" ${i===0?'disabled':''}>▲</button><button class="cat-move-btn" data-id="${esc(c.id)}" data-dir="1" ${i===cats.length-1?'disabled':''}>▼</button><span>${esc(c.name)}</span><button class="del-cat-btn" data-id="${esc(c.id)}">×</button></div>`).join('');
   list.querySelectorAll('.del-cat-btn').forEach(b=>b.onclick=()=>delCat(b.dataset.id));
+  list.querySelectorAll('.cat-move-btn').forEach(b=>b.onclick=()=>moveCat(b.dataset.id,parseInt(b.dataset.dir)));
+}
+
+async function moveCat(id,dir){
+  const cats=S.cats.filter(c=>c.type===S.catType);
+  const idx=cats.findIndex(c=>c.id===id);
+  const swapIdx=idx+dir;
+  if(swapIdx<0||swapIdx>=cats.length)return;
+  const b=writeBatch(db);
+  b.update(doc(catCol(),cats[idx].id),{order:swapIdx});
+  b.update(doc(catCol(),cats[swapIdx].id),{order:idx});
+  await b.commit();
+  await loadCats();renderCatSettings();updateCatSel();
 }
 
 function updateCatSel(){
