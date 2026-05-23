@@ -257,6 +257,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
           <option value="登録不要">登録不要</option>
         </select>
         <button id="btn-bulk-apply" class="btn-primary-sm">適用</button>
+        <button id="btn-bulk-duplicate" class="btn-outline-sm">複製</button>
         <button id="btn-bulk-cancel" class="btn-outline-sm">キャンセル</button>
       </div>
       <div id="transaction-list" class="transaction-list"><div class="empty-state">読み込み中...</div></div>
@@ -567,6 +568,17 @@ async function applyBulk(){
   const b=writeBatch(db);S.sel.forEach(id=>b.update(doc(txCol(),id),{freeeStatus:st,updatedAt:serverTimestamp()}));
   await b.commit();S.sel.clear();$('bulk-status').value='';await loadTx();updateBulkCnt();
 }
+async function duplicateBulk(){
+  if(!S.sel.size)return;
+  const b=writeBatch(db);
+  S.sel.forEach(id=>{
+    const tx=S.all.find(t=>t.id===id);if(!tx)return;
+    const {id:_,createdAt:__,updatedAt:___,...fields}=tx;
+    const newRef=doc(txCol());
+    b.set(newRef,{...fields,createdAt:serverTimestamp(),updatedAt:serverTimestamp()});
+  });
+  await b.commit();S.sel.clear();await loadTx();updateBulkCnt();
+}
 
 // TOAST
 function showToast(){
@@ -742,7 +754,7 @@ $('modal-overlay').onclick=e=>{if(e.target===$('modal-overlay'))hideModal()};
 $('btn-expense').onclick=()=>setType('expense');$('btn-income').onclick=()=>setType('income');
 $('btn-save').onclick=saveTx;$('btn-delete').onclick=delTx;
 $('search-input').oninput=()=>{S.search=$('search-input').value;applySearch();S.page=0;renderList()};
-$('btn-bulk').onclick=toggleBulk;$('btn-bulk-apply').onclick=applyBulk;$('btn-bulk-cancel').onclick=toggleBulk;
+$('btn-bulk').onclick=toggleBulk;$('btn-bulk-apply').onclick=applyBulk;$('btn-bulk-duplicate').onclick=duplicateBulk;$('btn-bulk-cancel').onclick=toggleBulk;
 $('btn-prev').onclick=()=>{if(S.page>0){S.page--;renderList()}};
 $('btn-next').onclick=()=>{if((S.page+1)*S.pageSize<S.shown.length){S.page++;renderList()}};
 document.querySelectorAll('.page-size-btn').forEach(b=>b.onclick=()=>{

@@ -4,5 +4,22 @@
     "location": "asia-northeast1",
     "rules": "firestore.rules",
     "indexes": "firestore.indexes.json"
+  },
+  "hosting": {
+    "public": ".",
+    "ignore": [
+      "firebase.json",
+      "firestore.rules",
+      "firestore.indexes.json",
+      ".firebaserc",
+      ".gitignore",
+      "README.md",
+      "mvnw",
+      "mvnw.cmd",
+      "pom.xml",
+      ".mvn/**",
+      "src/**",
+      "node_modules/**"
+    ]
   }
 }
