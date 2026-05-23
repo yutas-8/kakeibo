@@ -607,13 +607,13 @@ async function importFile(file,type,resultEl){
     if(rows.length>10000){throw new Error('行数が多すぎます（10000行以下）')}
     const exSnap=await getDocs(query(txCol(),where('importKey','!=','')));
     const keys=new Set(exSnap.docs.map(d=>d.data().importKey).filter(Boolean));
-    const b=writeBatch(db);let added=0,skipped=0,bc=0;
+    const b=writeBatch(db);let added=0,skipped=0,bc=0;const skippedRows=[];
     for(const row of rows){
       const name=sanitizeStr(row['名前'],200);const date=parseDt(row['日付']);
       const amount=parseAmt(type==='expense'?row['支出']:row['収入']);
       const catN=sanitizeStr(row['カテゴリー'],50)||(type==='expense'?'その他':'給与');
-      if(!name||!isValidDate(date)||!amount||amount<=0||amount>999999999){skipped++;continue}
-      const ik=`${date}_${name}_${amount}`;if(keys.has(ik)){skipped++;continue}
+      if(!name||!isValidDate(date)||!amount||amount<=0||amount>999999999){skipped++;skippedRows.push({row,reason:'データ不正'});continue}
+      const ik=`${date}_${name}_${amount}`;if(keys.has(ik)){skipped++;skippedRows.push({row,reason:'重複'});continue}
       let fs='未処理';
       if(type==='expense'){if(parseBool(row['計上不要']))fs='登録不要';else if(parseBool(row['free登録']))fs='登録済み'}
       else{if(parseBool(row['プロパティ']))fs='登録済み'}
@@ -623,7 +623,17 @@ async function importFile(file,type,resultEl){
       if(bc>=490){await b.commit();bc=0}
     }
     if(bc>0)await b.commit();
-    resultEl.className='import-result success';resultEl.textContent=`完了: ${added}件追加、${skipped}件スキップ`;
+    resultEl.className='import-result success';
+    let msg=`完了: ${added}件追加、${skipped}件スキップ`;
+    if(skippedRows.length>0){
+      msg+=`\n\n--- スキップされた行 ---`;
+      skippedRows.forEach((s,i)=>{
+        const r=s.row;const name=r['名前']||'(名前なし)';const date=r['日付']||'(日付なし)';
+        const amt=(type==='expense'?r['支出']:r['収入'])||'(金額なし)';
+        msg+=`\n${i+1}. [${s.reason}] ${date} / ${name} / ${amt}円`;
+      });
+    }
+    resultEl.style.whiteSpace='pre-wrap';resultEl.textContent=msg;
     await loadTx();
   }catch(e){resultEl.className='import-result error';resultEl.textContent='エラー: '+esc(e.message)}
 }
