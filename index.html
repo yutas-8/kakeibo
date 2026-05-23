@@ -607,7 +607,7 @@ async function importFile(file,type,resultEl){
     if(rows.length>10000){throw new Error('行数が多すぎます（10000行以下）')}
     const exSnap=await getDocs(query(txCol(),where('importKey','!=','')));
     const keys=new Set(exSnap.docs.map(d=>d.data().importKey).filter(Boolean));
-    const b=writeBatch(db);let added=0,skipped=0,bc=0;const skippedRows=[];
+    let b=writeBatch(db);let added=0,skipped=0,bc=0;const skippedRows=[];
     for(const row of rows){
       const name=sanitizeStr(row['名前'],200);const date=parseDt(row['日付']);
       const amount=parseAmt(type==='expense'?row['支出']:row['収入']);
@@ -620,7 +620,7 @@ async function importFile(file,type,resultEl){
       const catId=findCatId(catN,type);
       b.set(doc(txCol()),{type,name,date,amount,categoryId:catId,categoryName:catN,freeeStatus:fs,paymentMethod:'未設定',memo:'',importKey:ik,createdAt:serverTimestamp(),updatedAt:serverTimestamp()});
       keys.add(ik);added++;bc++;
-      if(bc>=490){await b.commit();bc=0}
+      if(bc>=490){await b.commit();b=writeBatch(db);bc=0}
     }
     if(bc>0)await b.commit();
     resultEl.className='import-result success';
