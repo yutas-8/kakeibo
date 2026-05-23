@@ -245,7 +245,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
         <div class="toolbar-right">
           <input type="text" id="search-input" class="search-input" placeholder="名前・カテゴリーで検索" maxlength="100" autocomplete="off">
           <button id="btn-bulk" class="btn-outline">一括編集</button>
-          <button id="btn-new" class="btn-primary" title="新規追加 (Ctrl+Shift+N)">＋ 新規</button>
+          <button id="btn-new" class="btn-primary" title="新規追加 (Ctrl+M)">＋ 新規</button>
         </div>
       </div>
       <div id="bulk-bar" class="bulk-bar" style="display:none">
@@ -799,7 +799,7 @@ $('import-income').onchange=async e=>{if(e.target.files[0]){await importFile(e.t
 $('btn-export').onclick=exportCSV;
 document.addEventListener('keydown',e=>{
   const modal=$('modal-overlay').style.display==='flex';
-  if(e.ctrlKey&&e.shiftKey&&e.key==='N'&&!modal){e.preventDefault();openNew();}
+  if(e.ctrlKey&&!e.shiftKey&&e.key==='m'&&!modal){e.preventDefault();openNew();}
   if(e.ctrlKey&&e.key==='Enter'&&modal){e.preventDefault();saveTx();}
 });
 </script>
