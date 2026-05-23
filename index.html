@@ -797,6 +797,11 @@ $('new-category-name').onkeypress=e=>{if(e.key==='Enter')addCat()};
 $('import-expense').onchange=async e=>{if(e.target.files[0]){await importFile(e.target.files[0],'expense',$('import-expense-result'));e.target.value=''}};
 $('import-income').onchange=async e=>{if(e.target.files[0]){await importFile(e.target.files[0],'income',$('import-income-result'));e.target.value=''}};
 $('btn-export').onclick=exportCSV;
+document.addEventListener('keydown',e=>{
+  const modal=$('modal-overlay').style.display==='flex';
+  if(e.ctrlKey&&e.shiftKey&&e.key==='N'&&!modal){e.preventDefault();openNew();}
+  if(e.ctrlKey&&e.key==='Enter'&&modal){e.preventDefault();saveTx();}
+});
 </script>
 </body>
 </html>
