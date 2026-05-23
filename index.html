@@ -245,7 +245,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
         <div class="toolbar-right">
           <input type="text" id="search-input" class="search-input" placeholder="名前・カテゴリーで検索" maxlength="100" autocomplete="off">
           <button id="btn-bulk" class="btn-outline">一括編集</button>
-          <button id="btn-new" class="btn-primary">＋ 新規</button>
+          <button id="btn-new" class="btn-primary" title="新規追加 (Ctrl+Shift+N)">＋ 新規</button>
         </div>
       </div>
       <div id="bulk-bar" class="bulk-bar" style="display:none">
@@ -357,7 +357,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
         <div class="form-group full-width"><label>メモ</label><textarea id="f-memo" rows="2" placeholder="任意" maxlength="1000"></textarea></div>
       </div>
     </div>
-    <div class="modal-footer"><button id="btn-delete" class="btn-danger" style="display:none">削除</button><div class="modal-footer-right"><button id="btn-cancel" class="btn-outline">キャンセル</button><button id="btn-save" class="btn-primary">保存</button></div></div>
+    <div class="modal-footer"><button id="btn-delete" class="btn-danger" style="display:none">削除</button><div class="modal-footer-right"><button id="btn-cancel" class="btn-outline">キャンセル</button><button id="btn-save" class="btn-primary" title="保存 (Ctrl+Enter)">保存 (Ctrl+Enter)</button></div></div>
   </div>
 </div>
 
@@ -797,6 +797,11 @@ $('new-category-name').onkeypress=e=>{if(e.key==='Enter')addCat()};
 $('import-expense').onchange=async e=>{if(e.target.files[0]){await importFile(e.target.files[0],'expense',$('import-expense-result'));e.target.value=''}};
 $('import-income').onchange=async e=>{if(e.target.files[0]){await importFile(e.target.files[0],'income',$('import-income-result'));e.target.value=''}};
 $('btn-export').onclick=exportCSV;
+document.addEventListener('keydown',e=>{
+  const modal=$('modal-overlay').style.display==='flex';
+  if(e.ctrlKey&&e.shiftKey&&e.key==='N'&&!modal){e.preventDefault();openNew();}
+  if(e.ctrlKey&&e.key==='Enter'&&modal){e.preventDefault();saveTx();}
+});
 </script>
 </body>
 </html>
