@@ -670,20 +670,32 @@ async function exportCSV(){
 }
 
 // ANALYSIS
-async function loadAnalysis(){
-  const yr=$('analysis-year').value;const mo=$('analysis-month').value;
-  const snap=await getDocs(query(txCol(),orderBy('date','desc')));
-  let txs=snap.docs.map(d=>d.data());
-  const years=[...new Set(txs.map(t=>t.date?.slice(0,4)))].filter(Boolean).sort().reverse();
+// 年セレクトを初回に補充し、デフォルトを今年にする
+function initAnalysisYears(){
   const yel=$('analysis-year');
-  if(yel.options.length<=1){years.forEach(y=>{if(!yel.querySelector(`option[value="${y}"]`)){const o=document.createElement('option');o.value=y;o.textContent=y+'年';yel.appendChild(o)}})}
-  if(yr!=='all')txs=txs.filter(t=>t.date?.startsWith(yr));
+  if(yel.dataset.init)return;
+  const cy=new Date().getFullYear();
+  for(let y=cy;y>=cy-4;y--){const o=document.createElement('option');o.value=String(y);o.textContent=y+'年';yel.appendChild(o)}
+  yel.value=String(cy);
+  yel.dataset.init='1';
+}
+
+async function loadAnalysis(){
+  initAnalysisYears();
+  const yr=$('analysis-year').value;const mo=$('analysis-month').value;
+  // 単年選択時はその年のみ取得し、DB読み込みを最小化する（全期間選択時のみ全件取得）
+  const q=yr==='all'?query(txCol(),orderBy('date','desc')):query(txCol(),where('date','>=',`${yr}-01-01`),where('date','<=',`${yr}-12-31`),orderBy('date','desc'));
+  const snap=await getDocs(q);
+  let txs=snap.docs.map(d=>d.data());
+  // 取得データから未登録の年（過去年など）をセレクトへ追加
+  const yel=$('analysis-year');
+  [...new Set(txs.map(t=>t.date?.slice(0,4)))].filter(Boolean).sort().reverse().forEach(y=>{if(!yel.querySelector(`option[value="${y}"]`)){const o=document.createElement('option');o.value=y;o.textContent=y+'年';yel.appendChild(o)}});
   if(mo!=='all')txs=txs.filter(t=>t.date?.slice(5,7)===mo);
   const exps=txs.filter(t=>t.type==='expense');const incs=txs.filter(t=>t.type==='income');
   const te=exps.reduce((s,t)=>s+t.amount,0);const ti=incs.reduce((s,t)=>s+t.amount,0);const bal=ti-te;
   $('sum-exp').textContent=fmt(te);$('sum-inc').textContent=fmt(ti);
   const bel=$('sum-bal');bel.textContent=(bal<0?'-':'')+fmt(Math.abs(bal));bel.className='summary-value '+(bal>=0?'positive':'negative');
-  renderMonthly(txs,yr);renderCatChart(exps);renderYearly(snap.docs.map(d=>d.data()));
+  renderMonthly(txs,yr);renderCatChart(exps);renderYearly(txs);
 }
 
 const PAL=['#4f6ef7','#ef4444','#22c55e','#f97316','#a855f7','#14b8a6','#eab308','#ec4899','#6b7280','#0ea5e9','#84cc16','#f43f5e'];
