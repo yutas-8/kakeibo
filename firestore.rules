@@ -19,8 +19,10 @@ service cloud.firestore {
     function isSignedIn() {
       return request.auth != null;
     }
-    function isOwner(userId) {
-      return isSignedIn() && request.auth.uid == userId;
+		function isOwner(userId) {
+      return isSignedIn()
+        && request.auth.uid == userId
+        && request.auth.uid == "zDRooOJ7YDhhZS6SqOLjx7afsRo2";
     }
     function isStr(v, maxLen) {
       return v is string && v.size() <= maxLen;
