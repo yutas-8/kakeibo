@@ -243,6 +243,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
       <div class="toolbar">
         <div class="filter-views" id="filter-views"></div>
         <div class="toolbar-right">
+          <select id="ym-filter" class="select-sm" title="使用年月で絞り込み"><option value="all">全期間</option></select>
           <input type="text" id="search-input" class="search-input" placeholder="名前・カテゴリーで検索" maxlength="100" autocomplete="off">
           <button id="btn-bulk" class="btn-outline">一括編集</button>
           <button id="btn-new" class="btn-primary" title="新規追加 (Ctrl+M)">＋ 新規</button>
@@ -391,7 +392,7 @@ const isValidDate=s=>/^\d{4}-\d{2}-\d{2}$/.test(s)&&!isNaN(new Date(s).getTime()
 const sanitizeStr=(s,max)=>String(s??'').trim().slice(0,max);
 const sanitizeAmt=v=>{const n=parseInt(v);return Number.isFinite(n)&&n>=0&&n<=999999999?n:NaN};
 
-let S={userId:null,tab:'list',filter:'要照合',search:'',pageSize:20,page:0,all:[],shown:[],cats:[],bulk:false,sel:new Set(),editId:null,type:'expense',charts:{},undoTimer:null,undoData:null,catType:'expense'};
+let S={userId:null,tab:'list',filter:'要照合',search:'',ym:'all',pageSize:20,page:0,all:[],shown:[],cats:[],bulk:false,sel:new Set(),editId:null,type:'expense',charts:{},undoTimer:null,undoData:null,catType:'expense'};
 
 const txCol=()=>collection(db,'users',S.userId,'transactions');
 const catCol=()=>collection(db,'users',S.userId,'categories');
@@ -469,21 +470,29 @@ function updateCatSel(){
 }
 
 // TRANSACTIONS
+// createdAt/updatedAtの新しい方（ミリ秒）。複製用の「当日更新」タブで使用
+const recency=t=>Math.max(t.updatedAt?.toMillis?.()||0,t.createdAt?.toMillis?.()||0);
+// 今日作成または更新されたか
+const isUpdatedToday=t=>{
+  const ms=recency(t);if(!ms)return false;
+  const d=new Date(ms),n=new Date();
+  return d.getFullYear()===n.getFullYear()&&d.getMonth()===n.getMonth()&&d.getDate()===n.getDate();
+};
+
 async function loadTx(){
   try{
     const snap=await getDocs(query(txCol(),orderBy('date','desc')));
     const all=snap.docs.map(d=>({id:d.id,...d.data()}));
-    // 直近に作成・更新したものを先頭に（複製しやすくするため）。createdAt/updatedAtの新しい方で降順ソート
-    const recency=t=>Math.max(t.updatedAt?.toMillis?.()||0,t.createdAt?.toMillis?.()||0);
-    all.sort((a,b)=>recency(b)-recency(a));
     const f=S.filter;
     if(f==='要照合')S.all=all.filter(t=>t.freeeStatus==='未処理');
     else if(f==='照合済')S.all=all.filter(t=>t.freeeStatus==='登録済み');
     else if(f==='登録不要')S.all=all.filter(t=>t.freeeStatus==='登録不要');
+    else if(f==='当日更新')S.all=all.filter(isUpdatedToday).sort((a,b)=>recency(b)-recency(a));
     else S.all=all;
-    const cnt={'要照合':all.filter(t=>t.freeeStatus==='未処理').length,'全件':all.length,'照合済':all.filter(t=>t.freeeStatus==='登録済み').length,'登録不要':all.filter(t=>t.freeeStatus==='登録不要').length};
-    $('filter-views').innerHTML=['要照合','全件','照合済','登録不要'].map(v=>`<button class="filter-btn${S.filter===v?' active':''}" data-view="${v}">${v}<span class="badge">${cnt[v]}</span></button>`).join('');
+    const cnt={'要照合':all.filter(t=>t.freeeStatus==='未処理').length,'当日更新':all.filter(isUpdatedToday).length,'全件':all.length,'照合済':all.filter(t=>t.freeeStatus==='登録済み').length,'登録不要':all.filter(t=>t.freeeStatus==='登録不要').length};
+    $('filter-views').innerHTML=['要照合','当日更新','全件','照合済','登録不要'].map(v=>`<button class="filter-btn${S.filter===v?' active':''}" data-view="${v}">${v}<span class="badge">${cnt[v]}</span></button>`).join('');
     $('filter-views').querySelectorAll('.filter-btn').forEach(b=>b.onclick=async()=>{S.filter=b.dataset.view;S.page=0;await loadTx()});
+    renderYmFilter(all);
     applySearch();S.page=0;renderList();
   }catch(e){
     $('transaction-list').innerHTML=`<div class="empty-state">データの読み込みに失敗しました。<br><small>${esc(e.message)}</small></div>`;
@@ -491,9 +500,20 @@ async function loadTx(){
   }
 }
 
+// 使用年月セレクトをデータから補充（選択は維持。候補から消えたら全期間に戻す）
+function renderYmFilter(all){
+  const sel=$('ym-filter');if(!sel)return;
+  const yms=[...new Set(all.map(t=>t.date?.slice(0,7)).filter(Boolean))].sort().reverse();
+  if(S.ym!=='all'&&!yms.includes(S.ym))S.ym='all';
+  sel.innerHTML='<option value="all">全期間</option>'+yms.map(ym=>{const[y,m]=ym.split('-');return`<option value="${esc(ym)}">${esc(y)}年${esc(m)}月</option>`}).join('');
+  sel.value=S.ym;
+}
+
 function applySearch(){
   const q=S.search.toLowerCase();
-  S.shown=q?S.all.filter(t=>t.name.toLowerCase().includes(q)||getCatName(t.categoryId).toLowerCase().includes(q)||String(t.amount).includes(q)):S.all;
+  let r=S.all;
+  if(S.ym!=='all')r=r.filter(t=>t.date&&t.date.slice(0,7)===S.ym);
+  S.shown=q?r.filter(t=>t.name.toLowerCase().includes(q)||getCatName(t.categoryId).toLowerCase().includes(q)||String(t.amount).includes(q)):r;
 }
 
 function renderList(){
@@ -793,6 +813,7 @@ $('modal-overlay').onclick=e=>{if(e.target===$('modal-overlay'))hideModal()};
 $('btn-expense').onclick=()=>setType('expense');$('btn-income').onclick=()=>setType('income');
 $('btn-save').onclick=saveTx;$('btn-delete').onclick=delTx;
 $('search-input').oninput=()=>{S.search=$('search-input').value;applySearch();S.page=0;renderList()};
+$('ym-filter').onchange=()=>{S.ym=$('ym-filter').value;applySearch();S.page=0;renderList()};
 $('btn-bulk').onclick=toggleBulk;$('btn-bulk-apply').onclick=applyBulk;$('btn-bulk-duplicate').onclick=duplicateBulk;$('btn-bulk-cancel').onclick=toggleBulk;
 $('btn-prev').onclick=()=>{if(S.page>0){S.page--;renderList()}};
 $('btn-next').onclick=()=>{if((S.page+1)*S.pageSize<S.shown.length){S.page++;renderList()}};
