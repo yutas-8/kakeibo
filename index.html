@@ -473,6 +473,9 @@ async function loadTx(){
   try{
     const snap=await getDocs(query(txCol(),orderBy('date','desc')));
     const all=snap.docs.map(d=>({id:d.id,...d.data()}));
+    // 直近に作成・更新したものを先頭に（複製しやすくするため）。createdAt/updatedAtの新しい方で降順ソート
+    const recency=t=>Math.max(t.updatedAt?.toMillis?.()||0,t.createdAt?.toMillis?.()||0);
+    all.sort((a,b)=>recency(b)-recency(a));
     const f=S.filter;
     if(f==='要照合')S.all=all.filter(t=>t.freeeStatus==='未処理');
     else if(f==='照合済')S.all=all.filter(t=>t.freeeStatus==='登録済み');
