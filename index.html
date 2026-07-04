@@ -533,14 +533,16 @@ function renderList(){
       <span class="tx-cat">${esc(catN)}</span>
       <span class="tx-amount ${isE?'amt-exp':'amt-inc'}">${isE?'-':'+'}${fmt(t.amount)}</span>
       <button class="status-btn ${sc}" data-id="${esc(t.id)}" data-st="${esc(t.freeeStatus||'')}">${esc(t.freeeStatus||'')}</button>
-      <button class="edit-btn" data-id="${esc(t.id)}">編集</button></div>`;
+      <button class="edit-btn" data-id="${esc(t.id)}">編集</button>
+      <button class="edit-btn dup-btn" data-id="${esc(t.id)}">複製</button></div>`;
   }).join('');
   if(S.bulk)list.querySelectorAll('.tx-check').forEach(cb=>cb.onchange=()=>{const id=cb.dataset.id;cb.checked?S.sel.add(id):S.sel.delete(id);updateBulkCnt();renderList()});
   list.querySelectorAll('.status-btn').forEach(b=>b.onclick=async e=>{
     e.stopPropagation();const cyc={'未処理':'登録済み','登録済み':'登録不要','登録不要':'未処理'};
     await updateDoc(doc(txCol(),b.dataset.id),{freeeStatus:cyc[b.dataset.st]||'未処理',updatedAt:serverTimestamp()});await loadTx();
   });
-  list.querySelectorAll('.edit-btn').forEach(b=>b.onclick=e=>{e.stopPropagation();openEdit(b.dataset.id)});
+  list.querySelectorAll('.edit-btn:not(.dup-btn)').forEach(b=>b.onclick=e=>{e.stopPropagation();openEdit(b.dataset.id)});
+  list.querySelectorAll('.dup-btn').forEach(b=>b.onclick=e=>{e.stopPropagation();duplicateOne(b.dataset.id)});
   $('pagination-info').textContent=`${start+1}〜${Math.min(start+ps,S.shown.length)} / ${S.shown.length}件`;
   $('btn-prev').disabled=S.page===0;$('btn-next').disabled=start+ps>=S.shown.length;
 }
@@ -607,6 +609,12 @@ async function applyBulk(){
   const st=$('bulk-status').value;if(!st||!S.sel.size)return;
   const b=writeBatch(db);S.sel.forEach(id=>b.update(doc(txCol(),id),{freeeStatus:st,updatedAt:serverTimestamp()}));
   await b.commit();S.sel.clear();$('bulk-status').value='';await loadTx();updateBulkCnt();
+}
+async function duplicateOne(id){
+  const tx=S.all.find(t=>t.id===id);if(!tx)return;
+  const {id:_,createdAt:__,updatedAt:___,...fields}=tx;
+  await setDoc(doc(txCol()),{...fields,createdAt:serverTimestamp(),updatedAt:serverTimestamp()});
+  await loadTx();
 }
 async function duplicateBulk(){
   if(!S.sel.size)return;
