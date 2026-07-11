@@ -542,7 +542,7 @@ function renderList(){
     await updateDoc(doc(txCol(),b.dataset.id),{freeeStatus:cyc[b.dataset.st]||'未処理',updatedAt:serverTimestamp()});await loadTx();
   });
   list.querySelectorAll('.edit-btn:not(.dup-btn)').forEach(b=>b.onclick=e=>{e.stopPropagation();openEdit(b.dataset.id)});
-  list.querySelectorAll('.dup-btn').forEach(b=>b.onclick=e=>{e.stopPropagation();duplicateOne(b.dataset.id)});
+  list.querySelectorAll('.dup-btn').forEach(b=>b.onclick=e=>{e.stopPropagation();openDuplicate(b.dataset.id)});
   $('pagination-info').textContent=`${start+1}〜${Math.min(start+ps,S.shown.length)} / ${S.shown.length}件`;
   $('btn-prev').disabled=S.page===0;$('btn-next').disabled=start+ps>=S.shown.length;
 }
@@ -610,11 +610,12 @@ async function applyBulk(){
   const b=writeBatch(db);S.sel.forEach(id=>b.update(doc(txCol(),id),{freeeStatus:st,updatedAt:serverTimestamp()}));
   await b.commit();S.sel.clear();$('bulk-status').value='';await loadTx();updateBulkCnt();
 }
-async function duplicateOne(id){
+function openDuplicate(id){
   const tx=S.all.find(t=>t.id===id);if(!tx)return;
-  const {id:_,createdAt:__,updatedAt:___,...fields}=tx;
-  await setDoc(doc(txCol()),{...fields,createdAt:serverTimestamp(),updatedAt:serverTimestamp()});
-  await loadTx();
+  S.editId=null;$('modal-title').textContent='複製登録';$('btn-delete').style.display='none';
+  $('f-name').value=tx.name||'';$('f-date').value=tx.date||today();$('f-amount').value=tx.amount||'';
+  $('f-memo').value=tx.memo||'';$('f-freee-status').value=tx.freeeStatus||'未処理';$('f-payment').value=tx.paymentMethod||'未設定';
+  setType(tx.type||'expense');setTimeout(()=>$('f-category').value=tx.categoryId||'',60);showModal();
 }
 async function duplicateBulk(){
   if(!S.sel.size)return;
