@@ -835,6 +835,7 @@ document.querySelectorAll('.page-size-btn').forEach(b=>b.onclick=()=>{
   b.classList.add('active');S.pageSize=parseInt(b.dataset.size);S.page=0;renderList();
 });
 $('toast-undo').onclick=undoDel;$('toast-close').onclick=hideToast;
+$('f-date').onchange=()=>{$('f-amount').focus()};
 $('analysis-year').onchange=loadAnalysis;$('analysis-month').onchange=loadAnalysis;
 $('btn-save-budget').onclick=saveBud;$('budget-year').onchange=loadBud;$('budget-month').onchange=loadBud;
 document.querySelectorAll('.cat-type-btn').forEach(b=>b.onclick=()=>{
